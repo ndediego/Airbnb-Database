@@ -1,0 +1,77 @@
+--Hosts with more than 100 properties in Boston MA, Austin TX, and Asheville NC combined
+SELECT f.fk_host_id, h.name, COUNT(F.fk_property_id) AS Number_of_Properties_Owned
+FROM FListing AS F
+JOIN Host AS H on F.fk_host_id = H.host_id
+GROUP BY f.fk_host_id, h.name
+HAVING Number_of_Properties_Owned > 100
+ORDER BY Number_of_Properties_Owned DESC;
+
+
+
+--Price x Property Type
+SELECT ROUND(AVG(PP.price),2) AS Average_Price, PT.description AS Property_Type,
+COUNT(FL.listing_id) AS Number_of_Properties
+FROM FListing AS FL
+JOIN Property AS PP ON FL.fk_property_id = PP.property_id
+JOIN PropertyType as PT ON FL.fk_property_type_id = PT.property_type_id
+GROUP BY PT.description
+ORDER BY Average_Price DESC;
+
+
+
+--Number of airbnb listings as a percentage of citys total housing units
+SELECT Airbnb_Units, Total_Units, ROUND((Airbnb_Units*1.0/Total_Units)*100,1) AS Percentage, 
+City
+FROM 
+(
+SELECT COUNT(FL.listing_id) AS Airbnb_Units, 
+CP.total_housing_units_2019 AS Total_Units, 
+CP.description AS City
+FROM FListing AS FL
+JOIN City AS CP ON FL.fk_city_id = CP.city_id
+GROUP BY CP.description
+);
+
+
+
+-- calculating the percentage of days available by city over time
+WITH funcs AS(
+ SELECT c.description AS city, 
+	p.property_id,
+	ROUND(AVG((p.availability_30/30) * 100), 2) AS percent_month_availability,
+	ROUND(AVG((p.availability_60/60)* 100), 2) AS percent_two_month_availability,
+	ROUND(AVG((p.availability_90/90)* 100), 2) AS percent_three_month_availability
+	FROM Property AS p
+	JOIN FListing 
+	ON FListing.fk_property_id = p.property_id
+	JOIN City AS c
+	ON FListing.fk_city_id = c.city_id
+	GROUP BY description)
+
+SELECT city, percent_month_availability, percent_two_month_availability, percent_three_month_availability  
+FROM funcs
+GROUP BY city;
+
+
+-- calculating the percentage of room types by city
+WITH room_counts AS(
+	SELECT c.description AS city, 
+	COUNT(p.property_id) AS total_listings,
+	COUNT(CASE WHEN p.room_type = 'Entire home/apt' THEN p.property_id END) AS entire_homes,
+	COUNT(CASE WHEN p.room_type = 'Private room' THEN p.property_id END) AS private_room,
+	COUNT(CASE WHEN p.room_type = 'Shared room' THEN p.property_id END) AS shared_room,
+	COUNT(CASE WHEN p.room_type = 'Hotel room' THEN p.property_id END) AS hotel_room
+	FROM Property AS p
+	JOIN FListing 
+	ON FListing.fk_property_id = p.property_id
+	JOIN City AS c
+	ON FListing.fk_city_id = c.city_id
+	GROUP BY city)
+	
+
+SELECT city,
+Round(((entire_homes * 1.0/ total_listings) * 100.0), 2) AS percent_entire_home,
+Round(((private_room * 1.0 / total_listings) * 100.0), 2) AS percent_private_room,
+Round(((shared_room  * 1.0/ total_listings) * 100.0), 2) AS percent_shared_room,
+Round(((hotel_room * 1.0/ total_listings) * 100.0), 2) AS percent_hotel_room
+FROM room_counts;
